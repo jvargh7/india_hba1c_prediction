@@ -78,3 +78,8 @@ nfhs5_analytic <- bind_rows(female_processed %>% mutate(sex = "Female"),
 
 saveRDS(nfhs5_analytic,paste0(path_india_hba1c_box_folder,"/working/ihpd02_nfhs5 analytic dataset.RDS"))
 write_csv(nfhs5_analytic,paste0(path_india_hba1c_box_folder,"/working/ihpd02_nfhs5 analytic dataset.csv"))
+
+nfhs5_analytic %>% 
+  group_by(sex) %>% 
+  summarize(across(everything(),~sum(!is.na(.)))) %>% 
+  write_csv(.,"data/ihpd02_counts of observations in nfhs5 analytic dataset.csv")
