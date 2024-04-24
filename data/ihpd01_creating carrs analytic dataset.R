@@ -60,7 +60,7 @@ with(major_followup,table(carrs,fup,useNA="always"))
 longitudinal_variables = c("onset_hd","onset_ca","onset_ckd",
                            "medication_bp","medication_dm","medication_hd",
                            "medication_ckd","alcohol","smokecurr",
-                           "freq_alcohol","smokecount")
+                           "freq_alcohol_weekly","freq_smoke_weekly")
 
 BL_sociodemographics = c("age","religion","caste","sex")
 BL_fixed = BL %>% 
@@ -84,7 +84,12 @@ analytic_dataset <- bind_rows(BL %>%
   dplyr::filter(!is.na(doi)) %>% 
   mutate(married = case_when(marital %in% c(2) ~ 1,
                              marital %in% c(1,3,4,5) ~ 0,
-                             TRUE ~ NA_real_))
+                             TRUE ~ NA_real_)) %>% 
+  mutate(religion = case_when(religion == 1 ~ "Hindu",
+                              religion == 2 ~ "Islam",
+                              TRUE ~ "Other"),
+         scst = case_when(caste == 1 ~ 1,
+                          TRUE ~ 0))
 
 saveRDS(analytic_dataset,paste0(path_india_hba1c_box_folder,"/working/ihpd01_carrs analytic dataset.RDS"))
 write_csv(analytic_dataset,paste0(path_india_hba1c_box_folder,"/working/ihpd01_carrs analytic dataset.csv"))
@@ -93,3 +98,4 @@ analytic_dataset %>%
   group_by(carrs,fup) %>% 
   summarize(across(everything(),~sum(!is.na(.)))) %>% 
   write_csv(.,"data/ihpd01_counts of observations in carrs analytic dataset.csv")
+
