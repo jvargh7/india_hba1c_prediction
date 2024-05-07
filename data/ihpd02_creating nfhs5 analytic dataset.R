@@ -13,6 +13,15 @@ source("data/ihpd_nfhs5 preprocessing.R")
 # Variables ------
 iapr_id_vars <- c("cluster","hhid","linenumber")
 
+iahr_variables <- readxl::read_excel("data/India HbA1c Prediction Variable List.xlsx",
+                                        sheet = "nfhs5 variables") %>% 
+  dplyr::filter(!is.na(iahr7a))
+
+household <- read_dta(paste0(path_dhs_data,"/IA/IAHR7CDT/IAHR7CFL.dta"),
+                      col_select = iahr_variables$iahr7a)  %>% 
+  rename_with(~ iahr_variables$new_var[which(iahr_variables$iahr7a == .x)], 
+              .cols = iahr_variables$iahr7a)
+
 # FEMALE ------------
 iair7c_female_variables <- readxl::read_excel("data/India HbA1c Prediction Variable List.xlsx",
                                               sheet = "nfhs5 variables") %>% 
@@ -39,7 +48,9 @@ female_processed <- female %>%
   left_join(female_pr %>% 
               dplyr::select(-age),
             by=iapr_id_vars) %>% 
-  ihpd_nfhs5_preprocessing(.)
+  ihpd_nfhs5_preprocessing(.) %>% 
+  left_join(household,
+            by=c("cluster","hhid"))
 
 
 # MALE ---------
@@ -71,7 +82,9 @@ male_processed <- male %>%
   left_join(male_pr %>% 
               dplyr::select(-age),
             by=iapr_id_vars)  %>% 
-  ihpd_nfhs5_preprocessing(.)
+  ihpd_nfhs5_preprocessing(.) %>% 
+  left_join(household,
+            by=c("cluster","hhid"))
 
 nfhs5_analytic <- bind_rows(female_processed %>% mutate(sex = "Female"),
                             male_processed %>% mutate(sex = "Male"))
