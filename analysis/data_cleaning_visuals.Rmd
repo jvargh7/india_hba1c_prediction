@@ -1,0 +1,762 @@
+---
+title: "Data Cleaning and Visualization - NFHS5 and CARRS"
+author: "Alayna Baker"
+date: "2024-05-02"
+output: html_document
+---
+
+```{r}
+# reading in carrs and nfhs5 data
+library(tidyr)
+carrs <- read.csv("/Users/alaynabaker/Documents/Hba1c Prediction/ihpd01_carrs analytic dataset.csv")
+
+carrs0 <- carrs
+
+# subsetting to only Indian cities and rows with HbA1c values 
+carrs1 <- subset(carrs0, site != "Karachi")
+carrs2 <- carrs1 %>% drop_na(hba1c)
+
+nfhs5 <- read.csv("/Users/alaynabaker/Documents/Hba1c Prediction/ihpd02_nfhs5 analytic dataset.csv")
+```
+```{r}
+###### CODE BELOW DEALS ONLY WITH CARRS - ends at line 483 ######
+```
+
+```{r}
+# adjusting CARRS variables sbp, dbp, height, bmi, htn, dm, medication_bp, medication_dm
+# transforming hbA1c to log(hbA1c)
+
+library(dplyr)
+
+# taking out sex == 3 (issue when imputing - can take out if decide to not impute)
+carrs3 <- subset(carrs2, sex <= 2)
+
+# BLOOD PRESSURE
+  # ICMR GUIDELINES: lowest of the first 2 measurements if difference between is <= 5mmg, otherwise, lowest of 3
+
+carrs_dbp <- subset(carrs3, select = c(dbp1, dbp2, dbp3))
+    carrs_dbp <- carrs_dbp %>%
+      mutate(dbp = case_when(
+        is.na(dbp2) & is.na(dbp3) ~ dbp1,
+        is.na(dbp3) ~ pmin(dbp1, dbp2), 
+        abs(dbp1 - dbp2) <= 5 ~ pmin(dbp1, dbp2), 
+        TRUE ~ pmin(dbp1, dbp2, dbp3))
+      )
+  
+  # adding to original dataset
+  carrs3["dbp"] = carrs_dbp["dbp"]
+
+carrs_sbp <- subset(carrs3, select = c(sbp1, sbp2, sbp3))
+      carrs_sbp <- carrs_sbp %>%
+        mutate(sbp = case_when(
+          is.na(sbp2) & is.na(sbp3) ~ sbp1,
+          is.na(sbp3) ~ pmin(sbp1, sbp2), 
+          is.na(sbp1) ~ pmin(sbp3, sbp2),
+          abs(sbp1 - sbp2) <= 5 ~ pmin(sbp1, sbp2), 
+          TRUE ~ pmin(sbp1, sbp2, sbp3))
+        )
+  
+    # adding to original dataset
+  carrs3["sbp"] = carrs_sbp["sbp"]
+
+# if height is NA in a follow-up, make it the same height as the baseline
+carrs3 <- carrs3 %>%
+  group_by(hhid, linenumber) %>%
+  mutate(height = ifelse(is.na(height) & any(fup == 4), first(height[!is.na(height) & fup == 0]), height))
+
+# calculating bmi manually
+
+  # height (cm) to height (m)
+  carrs3$height_m = carrs3$height / 100
+
+carrs3$new_bmi = carrs3$weight / (carrs3$height_m)^2
+
+# making NAs 0 for hypertension and diabetes diagnosis & medication usage for blood pressure and diabetes
+carrs3$history_htn <- ifelse(is.na(carrs3$history_htn), 0, carrs3$history_htn)
+carrs3$history_dm <- ifelse(is.na(carrs3$history_dm), 0, carrs3$history_dm)
+carrs3$medication_bp <- ifelse(is.na(carrs3$medication_bp), 0, carrs3$medication_bp)
+carrs3$medication_dm <- ifelse(is.na(carrs3$medication_dm), 0, carrs3$medication_dm)
+
+# making categorical variables factors - commented out for histograms
+# carrs3$religion <- factor(carrs3$religion)
+# carrs3$sex <- factor(carrs3$sex)
+# carrs3$history_htn <- factor(carrs3$history_htn)
+# carrs3$history_dm <- factor(carrs3$history_dm)
+# carrs3$medication_dm <- factor(carrs3$medication_dm)
+# carrs3$medication_bp <- factor(carrs3$medication_bp)
+
+# TAKING LOG OF HBA1C
+carrs3$log_hba1c <- log(carrs3$hba1c)
+
+# SUBSETTING WITH SHARED DATA
+shared_carrs <- subset(carrs3, select = c(hhid,
+                                        linenumber,
+                                        carrs, 
+                                        fup,
+                                        fpg, 
+                                        log_hba1c, # FINDING - transformed!
+                                        waistcircumference,
+                                        hipcircumference,
+                                        weight,
+                                        height, # adjusted for nas in baseline
+                                        sbp, # formula (ICMR Guidelines)
+                                        dbp, # formula (ICMR Guidelines)
+                                        new_bmi, # formula - manually calculated
+                                        age, 
+                                        sex, # subset to only male and female (categorical)
+                                        history_htn, # adjusted - NAs = 0 (categorical)
+                                        history_dm, # adjusted - NAs = 0 (categorical)
+                                        medication_bp, # adjusted - NAs = 0 (categorical)
+                                        medication_dm, # adjusted - NAs = 0 (categorical)
+                                        smokecurr,
+                                        freq_smoke_weekly,
+                                        alcohol,
+                                        freq_alcohol_weekly, 
+                                        religion, # (categorical)
+                                        married,
+                                        eduyr,
+                                        kitchen,
+                                        fuel,
+                                        water,
+                                        toilet,
+                                        tv,
+                                        fridge,
+                                        wmachine,
+                                        mobile,
+                                        computer,
+                                        car,
+                                        scooter,
+                                        bicycle))
+
+# renaming for easier use with nfhs5
+
+shared_carrs_renamed <- shared_carrs
+names(shared_carrs_renamed) <- c("hhid",
+                                "linenumber",
+                                "carrs", 
+                                "fup",
+                                "glucose",
+                                "log_hba1c",
+                                "waistcircumference", 
+                                "hipcircumference",
+                                "weight",
+                                "height",
+                                "sbp",
+                                "dbp",
+                                "bmi",
+                                "age",
+                                "sex",
+                                "htn",
+                                "dm",
+                                "bp_treatment",
+                                "dm_treatment",
+                                "smokecurr",
+                                "smokecount",
+                                "alcohol",
+                                "freq_alcohol",
+                                "religion",
+                                "marital",
+                                "eduyr", 
+                                "kitchen",
+                                "fuel",
+                                "water",
+                                "toilet",
+                                "tv",
+                                "fridge",
+                                "wmachine",
+                                "mobile",
+                                "computer", 
+                                "car",
+                                "scooter",
+                                "bicycle")
+
+# subsetting for modeling (this is the dataset used for prediction)
+health_carrs <- subset(shared_carrs_renamed, select = c(hhid,
+                                                        linenumber, 
+                                                        carrs, 
+                                                        fup, 
+                                                        glucose, 
+                                                        log_hba1c, 
+                                                        waistcircumference, 
+                                                        hipcircumference, 
+                                                        weight, 
+                                                        height, 
+                                                        sbp, 
+                                                        dbp, 
+                                                        bmi, 
+                                                        age, 
+                                                        sex, 
+                                                        htn, 
+                                                        dm, 
+                                                        bp_treatment, 
+                                                        dm_treatment, 
+                                                        alcohol, 
+                                                        freq_alcohol))
+                                                        
+# writing full csv 
+write.csv(health_carrs, file = "/Users/alaynabaker/Documents/Hba1c Prediction/Modeling Code/full_carrs.csv", row.names = FALSE)
+
+# no nas health carrs 
+no_nas_healthcarrs <- na.omit(health_carrs)
+write.csv(no_nas_healthcarrs, file = "/Users/alaynabaker/Documents/Hba1c Prediction/Modeling Code/nonas_carrs.csv", row.names = FALSE)
+
+# writing csv with only people who have a follow-up 
+only_fup <- health_carrs %>%
+  group_by(hhid, linenumber) %>%
+  filter(any(fup == 0) & any(fup == 4))
+
+head(only_fup)
+
+write.csv(only_fup, file = "/Users/alaynabaker/Documents/Hba1c Prediction/Modeling Code/carrs_fup.csv", row.names = FALSE)
+
+```
+```{r}
+# EVALUATING NAS
+library(Hmisc)
+library(qreport)
+
+testing <- health_carrs
+
+# how many nas per column? 
+print("sums")
+# colSums(is.na(health_carrs))
+
+# percentage of na for each column
+print("percentage")
+divide <- colSums(is.na(health_carrs))/nrow(health_carrs)
+perc <- round(divide*100, .2)
+# perc
+
+# carrs_dt <- setDT(health_carrs)
+missChk(carrs_dt)
+
+explanatory <- c("glucose", "waistcircumference", "hipcircumference", "weight", "height",
+  "sbp", "dbp", "bmi", "age", "sex", "htn", "dm", "bp_treatment",
+  "dm_treatment")
+
+dependent <- "log_hba1c"
+
+# testing %>%
+#   missing_pattern(dependent, explanatory)
+
+table(health_carrs$carrs, health_carrs$fup)
+
+```
+
+
+```{r}
+# comparing transformations of hba1c
+
+library(MASS)
+
+# omitting nas (for the graphs)
+transform_data0 <- na.omit(health_carrs)
+transform_data <- subset(transform_data0, select= -c(hhid, linenumber, carrs))
+
+# adding the variable transformations
+transform_data$hba1c <- exp(transform_data$log_hba1c)
+transform_data$sqrt_hba1c <- sqrt(transform_data$hba1c)
+transform_data$inv_hba1c <- 1 / transform_data$hba1c
+head(transform_data)
+
+library(ggplot2)
+library(cowplot)
+
+# histograms
+
+hist_norm <- ggplot(transform_data, aes(x = hba1c)) +
+  geom_histogram(binwidth = 0.3, fill = "salmon", color = "black", alpha = 0.7) +
+  labs(title = "HbA1c", x = "HbA1c")
+
+hist_sqrt <- ggplot(transform_data, aes(x = sqrt_hba1c)) +
+  geom_histogram(binwidth = 0.3, fill = "lavender", color = "black", alpha = 0.7) +
+  labs(title = "Sqrt(HbA1c)", x = "Sqrt(HbA1c)")
+
+hist_log <- ggplot(transform_data, aes(x = log_hba1c)) +
+  geom_histogram(binwidth = 0.3, fill = "skyblue", color = "black", alpha = 0.7) +
+  labs(title = "Log(HbA1c)", x = "Log(HbA1c)")
+
+hist_inv <- ggplot(transform_data, aes(x = inv_hba1c)) +
+  geom_histogram(binwidth = 0.3, fill = "forestgreen", color = "black", alpha = 0.7) +
+  labs(title = "1 / HbA1c", x = "1 / HbA1c")
+
+histogram_grid <- plot_grid(hist_norm, hist_sqrt, hist_log, ncol = 3)
+print(histogram_grid)
+
+# LINEAR MODELS & PREDICTIONS - using for QQplots and bland-altman plots
+
+# testing / training based on fup and follow-ups
+train <- transform_data %>%
+  filter(fup == 0)
+
+test <- transform_data %>%
+  filter(fup == 4)
+
+train_norm <- subset(train, select = -c(fup, log_hba1c, sqrt_hba1c, inv_hba1c))
+train_sqrt <- subset(train, select = -c(fup, log_hba1c, hba1c, inv_hba1c))
+train_log <- subset(train, select = -c(fup, hba1c, sqrt_hba1c, inv_hba1c))
+
+test_norm <- subset(test, select = -c(fup, log_hba1c, sqrt_hba1c, inv_hba1c))
+test_sqrt <- subset(test, select = -c(fup, log_hba1c, hba1c, inv_hba1c))
+test_log <- subset(test, select = -c(fup, hba1c, sqrt_hba1c, inv_hba1c))
+
+# linear models
+lm_norm <- lm(hba1c ~ glucose + waistcircumference + 
+                   hipcircumference + weight + height + sbp + dbp + bmi + age + sex + htn + dm + 
+                   bp_treatment + dm_treatment + alcohol + freq_alcohol, data = train_norm)
+
+lm_sqrt <- lm(sqrt_hba1c ~ glucose + waistcircumference + 
+                   hipcircumference + weight + height + sbp + dbp + bmi + age + sex + htn + dm + 
+                   bp_treatment + dm_treatment + alcohol + freq_alcohol, data = train_sqrt)
+
+lm_log <- lm(log_hba1c ~ glucose + waistcircumference + 
+                   hipcircumference + weight + height + sbp + dbp + bmi + age + sex + htn + dm + 
+                   bp_treatment + dm_treatment + alcohol + freq_alcohol, data = train_log)
+
+# predictions
+pred_norm <- predict(lm_norm, newdata = test_norm)
+pred_sqrt <- predict(lm_sqrt, newdata = test_sqrt)
+pred_log <- predict(lm_log, newdata = test_log)
+
+
+# means and differences for bland altman
+diff_norm <- test_norm$hba1c - pred_norm
+mean_norm <- (test_norm$hba1c + pred_norm) / 2
+
+diff_sqrt <- test_sqrt$sqrt_hba1c - pred_sqrt
+mean_sqrt <- (test_sqrt$sqrt_hba1c + pred_sqrt) / 2
+
+diff_log <- test_log$log_hba1c - pred_log
+mean_log <- (test_log$log_hba1c + pred_log) / 2
+
+# BLAND ALTMAN PLOTS
+bland_alt_norm <- ggplot(data = data.frame(mean_norm, diff_norm), aes(x = mean_norm, y = diff_norm)) +
+  geom_point() +
+  geom_hline(yintercept = mean(diff_norm), color = "salmon", linetype = "dashed") +
+  geom_hline(yintercept = mean(diff_norm) + 1.96 * sd(diff_norm), color = "forestgreen", linetype = "dashed") +
+  geom_hline(yintercept = mean(diff_norm) - 1.96 * sd(diff_norm), color = "forestgreen", linetype = "dashed") +
+  labs(title = "Bland-Altman Plot: HbA1c",
+       x = "Mean of Actual and Predicted Values",
+       y = "Difference between Actual and Predicted Values")
+
+bland_alt_sqrt <- ggplot(data = data.frame(mean_sqrt, diff_sqrt), aes(x = mean_sqrt, y = diff_sqrt)) +
+  geom_point() +
+  geom_hline(yintercept = mean(diff_sqrt), color = "lavender", linetype = "dashed") +
+  geom_hline(yintercept = mean(diff_sqrt) + 1.96 * sd(diff_sqrt), color = "forestgreen", linetype = "dashed") +
+  geom_hline(yintercept = mean(diff_sqrt) - 1.96 * sd(diff_sqrt), color = "forestgreen", linetype = "dashed") +
+  labs(title = "Bland-Altman Plot: Sqrt(HbA1c)",
+       x = "Mean of Actual and Predicted Values",
+       y = "Difference between Actual and Predicted Values")
+
+bland_alt_log <- ggplot(data = data.frame(mean_log, diff_log), aes(x = mean_log, y = diff_log)) +
+  geom_point() +
+  geom_hline(yintercept = mean(diff_log), color = "skyblue", linetype = "dashed") +
+  geom_hline(yintercept = mean(diff_log) + 1.96 * sd(diff_log), color = "forestgreen", linetype = "dashed") +
+  geom_hline(yintercept = mean(diff_log) - 1.96 * sd(diff_log), color = "forestgreen", linetype = "dashed") +
+  labs(title = "Bland-Altman Plot: Log(HbA1c)",
+       x = "Mean of Actual and Predicted Values",
+       y = "Difference between Actual and Predicted Values")
+
+plot_grid(bland_alt_norm, bland_alt_sqrt, bland_alt_log, ncol = 3)
+
+# QQ PLOTS
+qq_norm <- ggplot(data.frame(residuals = residuals(lm_norm)), aes(sample = residuals)) +
+  stat_qq() +
+  stat_qq_line() +
+  labs(title = "HbA1c", 
+       x = "Theoretical Quantiles",
+       y = "Sample Quantiles")
+
+qq_sqrt <- ggplot(data.frame(residuals = residuals(lm_sqrt)), aes(sample = residuals)) +
+  stat_qq() +
+  stat_qq_line() +
+  labs(title = "Sqrt(HbA1c)", 
+       x = "Theoretical Quantiles",
+       y = "Sample Quantiles")
+
+qq_log <- ggplot(data.frame(residuals = residuals(lm_log)), aes(sample = residuals)) +
+  stat_qq() +
+  stat_qq_line() +
+  labs(title = "Log(HbA1c)", 
+       x = "Theoretical Quantiles",
+       y = "Sample Quantiles")
+
+plot_grid(qq_norm, qq_sqrt, qq_log, ncol = 3)
+
+density_norm <- ggplot(transform_data, aes(x = hba1c)) +
+  geom_density(fill = "blue", alpha = 0.5) +
+  labs(title = "Density Plot of HbA1c")
+
+density_sqrt <- ggplot(transform_data, aes(x = sqrt_hba1c)) +
+  geom_density(fill = "green", alpha = 0.5) +
+  labs(title = "Density Plot of Sqrt(HbA1c)")
+
+density_log <- ggplot(transform_data, aes(x = log_hba1c)) +
+  geom_density(fill = "red", alpha = 0.5) +
+  labs(title = "Density Plot of log(HbA1c)")
+
+plot_grid(density_norm, density_sqrt, density_log, ncol = 3)
+
+```
+
+```{r}
+# imputation: doing 5 iterations for each row 
+
+# imputation types: 
+# rf: random forest
+# norm.boot: linear regression with bootstrapping
+# norm.predict: linear regression, predicted values
+# default ("var") -> predictive mean 
+
+# IMPUTING MISSING DATA
+library(mice)
+
+rfData0 <- mice(health_carrs, m=5, maxit = 10, meth="rf", seed=123)
+rfData <- complete(rfData0, action = "long")
+summary(rfData0)
+head(rfData)
+
+bootData0 <- mice(health_carrs, m=5, maxit = 10, meth="norm.boot", seed=123)
+bootData <- complete(bootData0, action = "long")
+summary(bootData0)
+
+predData0 <- mice(health_carrs, m=5, maxit = 10, meth="norm.predict", seed=123)
+predData <- complete(predData0, action = "long")
+summary(predData0)
+
+varData0 <- mice(health_carrs, m=5, maxit = 10, seed=123)
+varData <- complete(varData0, action = "long")
+summary(varData0)
+
+write.csv(rfData, file = "/Users/alaynabaker/Documents/Hba1c Prediction/Modeling Code/carrs_imputed_rf.csv", row.names = FALSE)
+write.csv(bootData, file = "/Users/alaynabaker/Documents/Hba1c Prediction/Modeling Code/carrs_imputed_bootstrap.csv", row.names = FALSE)
+write.csv(predData, file = "/Users/alaynabaker/Documents/Hba1c Prediction/Modeling Code/carrs_imputed_prediction.csv", row.names = FALSE)
+write.csv(varData, file = "/Users/alaynabaker/Documents/Hba1c Prediction/Modeling Code/carrs_imputed_variation.csv", row.names = FALSE)
+```
+
+
+```{r}
+# narrowing down imputation - taking linear regression prediction, first iteration 
+# this is somewhat arbitrary, but utilizing for the "simpler model" comparison
+
+# getting mean and standard deviation values for this imputed dataset 
+
+BESTdata0 <- complete(predData0, action = 1)
+head(BESTdata0)
+
+BESTdata1 <- subset(health_carrs, select = -c(hhid, linenumber, sex, htn, dm, bp_treatment, dm_treatment))
+summary(BESTdata1)
+
+# separating factors to get % rather than counts
+BEST_factor <- subset(health_carrs, select = c(carrs, fup, sex, htn, dm, bp_treatment, dm_treatment, alcohol))
+
+# averages 
+best_averages <- BESTdata1 %>%
+  group_by(carrs, fup) %>%
+  summarize(across(everything(), mean, na.rm = TRUE))
+
+print(best_averages)
+
+# standard deviation
+best_sd_values <- BESTdata1 %>%
+  group_by(carrs,fup) %>%
+  summarize(across(everything(), ~ sd(.x, na.rm = TRUE)))
+
+print(best_sd_values)
+
+# this could be more efficient, i just input each factor individually to get the percentages. should loop through BEST_factor instead
+
+percentage_males <- BEST_factor %>%
+  group_by(carrs,fup) %>%
+  summarize(
+    total_count = n(),
+    male_count = sum(alcohol == 1, na.rm = TRUE)
+  ) %>%
+  mutate(percentage_males = (male_count / total_count) * 100)
+
+# Print the percentage of males
+print(percentage_males)
+
+# counts for each carrs wave and follow-up
+table(health_carrs$carrs, health_carrs$fup)
+
+```
+```{r}
+##### CODE BELOW DEALS WITH ONLY NFHS5 ####
+```
+
+
+```{r}
+# changing variables for nfhs5 
+nfhs5_1 <- nfhs5
+
+# changing sex to numerical ("Male" = 1, "Female" = 2)
+nfhs5_1$sex <- ifelse(nfhs5_1$sex == "Male", 1, 2)
+
+# DIABETES - also current_dm - 8 = NA 
+nfhs5_dm <- subset(nfhs5_1, select = c(toldhigh_dm, diagnosed_dm))
+  # changing nas to 0 in toldhigh_dm
+  nfhs5_dm$toldhigh_dm <- ifelse(is.na(nfhs5_dm$toldhigh_dm), 0, nfhs5_dm$toldhigh_dm)
+  table(nfhs5_dm) # show same counts
+  dm_differ <- subset(nfhs5_dm, toldhigh_dm != diagnosed_dm) # are they the same values? 
+  # dm_differ # EMPTY - yes same values
+  summary(nfhs5_dm)
+  # CONCLUSION: same values, but going with diagnosed_dm (no NAs to change)
+
+nfhs5_med_dm <- subset(nfhs5_1, select = c(medication_dm, treated_dm)) # medication_dm has a lot of NAs
+  nfhs5_med_dm$medication_dm <- ifelse(is.na(nfhs5_med_dm$medication_dm), 0, nfhs5_med_dm$medication_dm)
+  table(nfhs5_med_dm) # same count 
+  dm_differ <- subset(nfhs5_med_dm, medication_dm != treated_dm) 
+  # CONCLUSION: same values, but going with medication_dm (no NAs to change)
+
+nfhs5_bmi <- subset(nfhs5, select = c(bmi, bmi_category))
+# table(nfhs5_bmi)
+
+nfhs_age <- subset(nfhs5, select = c(age, age_category, age_category5, age_category10))
+# table(nfhs5_age)
+
+nfhs5_state <- subset(nfhs5, select = c(state, state2)) # same
+  state_differ <- subset(nfhs5_state, state != state2)
+  state_differ
+
+nfhs5_marital <- subset(nfhs5, select = c(marital, marital2)) # seems to be the same 
+table(nfhs5_marital)
+
+nfhs_dbp <- subset(nfhs5_1, select = c(dbp1, dbp2, dbp3))
+    nfhs_dbp <- nfhs_dbp %>%
+      mutate(dbp = case_when(
+        is.na(dbp2) & is.na(dbp3) ~ dbp1,
+        is.na(dbp3) ~ pmin(dbp1, dbp2), 
+        abs(dbp1 - dbp2) <= 5 ~ pmin(dbp1, dbp2), 
+        TRUE ~ pmin(dbp1, dbp2, dbp3))
+      )
+  
+  # adding to original dataset
+  nfhs5_1["real_dbp"] = nfhs_dbp["dbp"]
+
+nfhs_sbp <- subset(nfhs5_1, select = c(sbp1, sbp2, sbp3))
+      nfhs_sbp <- nfhs_sbp %>%
+        mutate(sbp = case_when(
+          is.na(sbp2) & is.na(sbp3) ~ sbp1,
+          is.na(sbp3) ~ pmin(sbp1, sbp2), 
+          is.na(sbp1) ~ pmin(sbp3, sbp2),
+          abs(sbp1 - sbp2) <= 5 ~ pmin(sbp1, sbp2), 
+          TRUE ~ pmin(sbp1, sbp2, sbp3))
+        )
+      
+  # adding to original dataset
+  nfhs5_1["real_sbp"] = nfhs_sbp["sbp"]
+  
+
+# reformatting weight, height, and hb to get decimal points  
+nfhs5_1$weight <- nfhs5_1$weight / 10 
+nfhs5_1$height <- nfhs5_1$height / 10 
+nfhs5_1$hb_adjusted <- nfhs5_1$hb_adjusted / 10 
+  
+# making NAs 0 
+nfhs5_1$htn <- ifelse(is.na(nfhs5_1$htn), 0, nfhs5_1$htn)
+nfhs5_1$medication_dm <- ifelse(is.na(nfhs5_1$medication_dm), 0, nfhs5_1$medication_dm)
+# nfhs5_1$smokecurr <- ifelse(is.na(nfhs5_1$smokecurr), 0, nfhs5_1$smokecurr)
+# nfhs5_1$smokecount <- ifelse(is.na(nfhs5_1$smokecount), 0, nfhs5_1$smokecount)
+# nfhs5_1$freq_alcohol <- ifelse(is.na(nfhs5_1$freq_alcohol), 0, nfhs5_1$freq_alcohol)
+
+nfhs5_1$religion <- factor(nfhs5_1$religion)
+
+  
+shared_nfhs <- subset(nfhs5_1, select = c(hhid,
+                                        linenumber,
+                                        glucose,
+                                        waistcircumference,
+                                        hipcircumference,
+                                        weight,
+                                        height,
+                                        real_sbp,
+                                        real_dbp,
+                                        bmi,
+                                        age,
+                                        sex, 
+                                        htn,
+                                        diagnosed_dm,
+                                        current_ca,
+                                        treated_bp,
+                                        medication_dm,
+                                        smokecurr,
+                                        smokecount,
+                                        alcohol,
+                                        freq_alcohol, 
+                                        religion,
+                                        marital,
+                                        eduyr,
+                                        kitchen,
+                                        fuel,
+                                        water,
+                                        toilet,
+                                        tv,
+                                        fridge,
+                                        wmachine,
+                                        mobile,
+                                        computer,
+                                        car,
+                                        scooter,
+                                        bicycle))
+
+shared_nfhs_renamed <- shared_nfhs
+names(shared_nfhs_renamed) <- c("hhid",
+                                "linenumber",
+                                "glucose",
+                                "waistcircumference", 
+                                "hipcircumference",
+                                "weight",
+                                "height",
+                                "sbp",
+                                "dbp",
+                                "bmi",
+                                "age",
+                                "sex",
+                                "htn",
+                                "dm",
+                                "ca",
+                                "bp_treatment",
+                                "dm_treatment",
+                                "smokecurr",
+                                "smokecount",
+                                "alcohol",
+                                "freq_alcohol",
+                                "religion",
+                                "marital",
+                                "eduyr", 
+                                "kitchen",
+                                "fuel",
+                                "water",
+                                "toilet",
+                                "tv",
+                                "fridge",
+                                "wmachine",
+                                "mobile",
+                                "computer", 
+                                "car",
+                                "scooter",
+                                "bicycle")
+
+# outliers - should change to NA? 
+shared_nfhs_renamed$weight <- ifelse(shared_nfhs_renamed$weight >= 999, NA, shared_nfhs_renamed$weight) # taking out outliers (weight >= 999)
+shared_nfhs_renamed$height <- ifelse(shared_nfhs_renamed$height >= 999, NA, shared_nfhs_renamed$height) # taking out outliers (height >= 999)
+shared_nfhs_renamed <- subset(shared_nfhs_renamed, age >= 20) # should only be considering people over than 20? 
+shared_nfhs_renamed$smokecount <- ifelse(shared_nfhs_renamed$smokecount == 80, NA, shared_nfhs_renamed$smokecount)
+
+
+# simple_nfhs <- subset(shared_nfhs, select = c(hhid,
+#                                               linenumber, 
+#                                               glucose,
+#                                               hb,
+#                                               waistcircumference,
+#                                               hipcircumference,
+#                                               weight,
+#                                               height,
+#                                               sbp,
+#                                               dbp,
+#                                               bmi,
+#                                               age,
+#                                               sex,
+#                                               htn,
+#                                               current_dm,
+#                                               current_ckd,
+#                                               current_ca,
+#                                               med_bp,
+#                                               soughttx_dm,
+#                                               soughttx_hd,
+#                                               soughttx_ckd, 
+#                                               smokecurr,
+#                                               smokecount,
+#                                               alcohol,
+#                                               freq_alcohol))
+
+# simple_nfhs[, 14:25][is.na(simple_nfhs[, 14:25])] <- 0
+
+summary(shared_nfhs_renamed)
+```
+
+
+```{r}
+# HISTOGRAMS FOR EACH SHARED VARIABLE BETWEEN CARRS AND NFHS5
+
+hist_nfhs <- shared_nfhs_renamed
+hist_carrs <- shared_carrs_renamed
+hist_variables <- c("glucose", "waistcircumference", "hipcircumference", "weight", "height",
+               "sbp", "dbp", "bmi", "age", "sex", "smokecurr", "smokecount",
+               "alcohol", "freq_alcohol", "marital", "eduyr")
+
+histograms <- function(hist_nfhs, hist_carrs, hist_variables) {
+  par(mfrow = c(2,1))
+  
+  for (var in hist_variables) {
+    print(var)
+    
+    print("NFHS5")
+    print(summary(hist_nfhs[[var]]))
+    print("CARRS")
+    print(summary(hist_carrs[[var]]))
+    
+    nfhs_data <- hist_nfhs[[var]][!is.na(hist_nfhs[[var]])]
+    carrs_data <- hist_carrs[[var]][!is.na(hist_carrs[[var]])]
+    
+    # making the range of the graphs to be the extreme of either dataset
+    xlim_range <- range(c(nfhs_data, carrs_data), na.rm = TRUE)
+    
+    hist(nfhs_data, main = paste("NFHS5: Histogram of ", var), xlim = xlim_range, xlab = var)
+    hist(carrs_data, main = paste("CARRS: Histogram of ", var), xlim = xlim_range, xlab = var)
+  }
+}
+
+histograms(hist_nfhs, hist_carrs, hist_variables)
+
+```
+```{r}
+# BOXPLOTS 
+# NOTE: need to adjust smokecount, religion, freq_alcohol, marital, fuel, water, toilet -> look at spreadsheet definition comparisons to adjust accordingly. not urgent now (= relevant for modeling), but should be done before applying to nfhs5
+
+box_variables <- c("htn", "dm", "bp_treatment",
+               "dm_treatment", "smokecurr", "smokecount",
+               "alcohol", "freq_alcohol", "religion", "marital", "eduyr", "kitchen",
+               "fuel", "water", "toilet", "tv", "fridge", "wmachine", "mobile",
+               "computer", "car", "scooter", "bicycle")
+
+boxplots <- function(hist_nfhs, hist_carrs, box_variables) {
+  par(mfrow = c(1, 1))
+  
+  for (var in box_variables) {
+    print(var)
+    
+    nfhs_var <- hist_nfhs[[var]]
+    carrs_var <- hist_carrs[[var]]
+    
+    # Determine the unique categories
+    categories <- unique(c(nfhs_var, carrs_var))
+    
+    # Count occurrences of each category in both datasets
+    counts_nfhs <- table(factor(nfhs_var, levels = categories))
+    counts_carrs <- table(factor(carrs_var, levels = categories))
+    
+    proportions_nfhs <- counts_nfhs / sum(counts_nfhs)
+    proportions_carrs <- counts_carrs / sum(counts_carrs)
+    
+    # Create barplot
+    barplot(
+      rbind(proportions_nfhs, proportions_carrs),
+      beside = TRUE,
+      col = c("blue", "red"),
+      main = paste("Comparison of", var),
+      xlab = var,
+      ylab = "Count",
+      legend.text = c("NFHS5", "CARRS"),
+      args.legend = list(x = "topright")
+    )
+  }
+}
+
+boxplots(hist_nfhs, hist_carrs, box_variables)
+```
+
+
+
+
