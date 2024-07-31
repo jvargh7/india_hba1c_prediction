@@ -1,0 +1,97 @@
+---
+title: "Cleaned_Data_Comparison"
+author: "Alayna Baker"
+date: "2024-07-31"
+output: html_document
+---
+
+
+```{r}
+# READING IN DATA 
+
+nfhs_data <- read.csv("/Users/alaynabaker/Documents/Hba1c Prediction/FINAL/Data/Shared Columns/sharedNFHS5.csv")
+
+carrs_data <- read.csv("/Users/alaynabaker/Documents/Hba1c Prediction/FINAL/Data/Shared Columns/sharedCarrs.csv")
+```
+
+```{r}
+# HISTOGRAMS FOR EACH SHARED VARIABLE BETWEEN CARRS AND NFHS5
+
+hist_nfhs <- nfhs_data
+hist_carrs <- carrs_data
+hist_variables <- c("glucose", "waistcircumference", "hipcircumference", "weight", "height",
+               "sbp", "dbp", "bmi", "age", "sex", "smokecurr",
+               "alcohol", "marital", "eduyr")
+
+histograms <- function(hist_nfhs, hist_carrs, hist_variables) {
+  par(mfrow = c(2,1))
+  
+  for (var in hist_variables) {
+    print(var)
+    
+    print("NFHS5")
+    print(summary(hist_nfhs[[var]]))
+    print("CARRS")
+    print(summary(hist_carrs[[var]]))
+    
+    nfhs_data <- hist_nfhs[[var]][!is.na(hist_nfhs[[var]])]
+    carrs_data <- hist_carrs[[var]][!is.na(hist_carrs[[var]])]
+    
+    # making the range of the graphs to be the extreme of either dataset
+    xlim_range <- range(c(nfhs_data, carrs_data), na.rm = TRUE)
+    
+    hist(nfhs_data, main = paste("NFHS5: Histogram of ", var), xlim = xlim_range, xlab = var)
+    hist(carrs_data, main = paste("CARRS: Histogram of ", var), xlim = xlim_range, xlab = var)
+  }
+}
+
+histograms(hist_nfhs, hist_carrs, hist_variables)
+
+```
+
+```{r}
+# BOXPLOTS 
+
+box_variables <- c("htn", "dm", "bp_treatment",
+               "dm_treatment", "smokecurr",
+               "alcohol", "religion", "marital", "eduyr", "kitchen",
+               "fuel", "water", "toilet", "tv", "fridge", "wmachine", "mobile",
+               "computer", "car", "scooter", "bicycle")
+
+boxplots <- function(hist_nfhs, hist_carrs, box_variables) {
+  par(mfrow = c(1, 1))
+  
+  for (var in box_variables) {
+    print(var)
+    
+    nfhs_var <- hist_nfhs[[var]]
+    carrs_var <- hist_carrs[[var]]
+    
+    # Determine the unique categories
+    categories <- unique(c(nfhs_var, carrs_var))
+    
+    # Count occurrences of each category in both datasets
+    counts_nfhs <- table(factor(nfhs_var, levels = categories))
+    counts_carrs <- table(factor(carrs_var, levels = categories))
+    
+    proportions_nfhs <- counts_nfhs / sum(counts_nfhs)
+    proportions_carrs <- counts_carrs / sum(counts_carrs)
+    
+    # Create barplot
+    barplot(
+      rbind(proportions_nfhs, proportions_carrs),
+      beside = TRUE,
+      col = c("blue", "red"),
+      main = paste("Comparison of", var),
+      xlab = var,
+      ylab = "Count",
+      legend.text = c("NFHS5", "CARRS"),
+      args.legend = list(x = "topright")
+    )
+  }
+}
+
+boxplots(hist_nfhs, hist_carrs, box_variables)
+```
+
+

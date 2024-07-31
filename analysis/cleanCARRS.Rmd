@@ -1,0 +1,318 @@
+---
+title: "Data Cleaning - CARRS"
+author: "Alayna Baker"
+date: "2024-05-02"
+output: html_document
+---
+
+```{r}
+############################
+## NECESSARY CODE INPUTS
+# - "ihpd01_carrs analytic dataset.csv" [find in BOX]
+
+## NECESSARY CODE OUTPUTS
+# - only_fup - "fupCARRS.csv" [@ bottom of 2 || used for imputation]
+# - imputedData - "only_fup_imputed.csv" [@ bottom of 4 || used to train/test model]
+
+#### ORDER TO THIS CODE
+# 1. Reading in Data
+# 2. Data Cleaning
+# 3. Evaluating NAs
+# 4. Imputation
+
+############################
+```
+
+
+```{r}
+############################
+# 1. READING IN DATA
+
+library(tidyr)
+carrs <- read.csv("/Users/alaynabaker/Documents/Hba1c Prediction/FINAL/Data/ORIGINAL/ihpd01_carrs analytic dataset.csv")
+
+############################
+```
+
+```{r}
+############################
+# 2. DATA CLEANING
+
+# variables changed: 
+
+# adjusting CARRS variables sbp, dbp, height, bmi, htn, dm, medication_bp, medication_dm
+# transforming hbA1c to log(hbA1c)
+
+carrs0 <- carrs
+
+# subsetting to only Indian cities and rows with HbA1c values 
+carrs1 <- subset(carrs0, site != "Karachi")
+carrs2 <- carrs1 %>% drop_na(hba1c)
+
+library(dplyr)
+
+# taking out sex == 3 (issue when imputing - can take out if decide to not impute)
+carrs3 <- subset(carrs2, sex <= 2)
+
+# BLOOD PRESSURE
+  # ICMR GUIDELINES: lowest of the first 2 measurements if difference between is <= 5mmg, otherwise, lowest of 3
+
+carrs_dbp <- subset(carrs3, select = c(dbp1, dbp2, dbp3))
+    carrs_dbp <- carrs_dbp %>%
+      mutate(dbp = case_when(
+        is.na(dbp2) & is.na(dbp3) ~ dbp1,
+        is.na(dbp3) ~ pmin(dbp1, dbp2), 
+        abs(dbp1 - dbp2) <= 5 ~ pmin(dbp1, dbp2), 
+        TRUE ~ pmin(dbp1, dbp2, dbp3))
+      )
+  
+  # adding to original dataset
+  carrs3["dbp"] = carrs_dbp["dbp"]
+
+carrs_sbp <- subset(carrs3, select = c(sbp1, sbp2, sbp3))
+      carrs_sbp <- carrs_sbp %>%
+        mutate(sbp = case_when(
+          is.na(sbp2) & is.na(sbp3) ~ sbp1,
+          is.na(sbp3) ~ pmin(sbp1, sbp2), 
+          is.na(sbp1) ~ pmin(sbp3, sbp2),
+          abs(sbp1 - sbp2) <= 5 ~ pmin(sbp1, sbp2), 
+          TRUE ~ pmin(sbp1, sbp2, sbp3))
+        )
+  
+    # adding to original dataset
+  carrs3["sbp"] = carrs_sbp["sbp"]
+
+# if height is NA in a follow-up, make it the same height as the baseline
+carrs3 <- carrs3 %>%
+  group_by(hhid, linenumber) %>%
+  mutate(height = ifelse(is.na(height) & any(fup == 4), first(height[!is.na(height) & fup == 0]), height))
+
+# calculating bmi manually
+
+  # height (cm) to height (m)
+  carrs3$height_m = carrs3$height / 100
+
+carrs3$new_bmi = carrs3$weight / (carrs3$height_m)^2
+
+# making NAs 0 for hypertension and diabetes diagnosis & medication usage for blood pressure and diabetes
+carrs3$history_htn <- ifelse(is.na(carrs3$history_htn), 0, carrs3$history_htn)
+carrs3$history_dm <- ifelse(is.na(carrs3$history_dm), 0, carrs3$history_dm)
+carrs3$medication_bp <- ifelse(is.na(carrs3$medication_bp), 0, carrs3$medication_bp)
+carrs3$medication_dm <- ifelse(is.na(carrs3$medication_dm), 0, carrs3$medication_dm)
+
+# TAKING LOG OF HBA1C
+carrs3$log_hba1c <- log(carrs3$hba1c)
+
+# SUBSETTING WITH SHARED DATA
+shared_carrs <- subset(carrs3, select = c(hhid,
+                                        linenumber,
+                                        carrs, 
+                                        fup,
+                                        fpg, 
+                                        log_hba1c, # FINDING - transformed!
+                                        waistcircumference,
+                                        hipcircumference,
+                                        weight,
+                                        height, # adjusted for nas in baseline
+                                        sbp, # formula (ICMR Guidelines)
+                                        dbp, # formula (ICMR Guidelines)
+                                        new_bmi, # formula - manually calculated
+                                        age, 
+                                        sex, # subset to only male and female (categorical)
+                                        history_htn, # adjusted - NAs = 0 (categorical)
+                                        history_dm, # adjusted - NAs = 0 (categorical)
+                                        medication_bp, # adjusted - NAs = 0 (categorical)
+                                        medication_dm, # adjusted - NAs = 0 (categorical)
+                                        smokecurr,
+                                        freq_smoke_weekly,
+                                        alcohol,
+                                        freq_alcohol_weekly, 
+                                        religion, # (categorical)
+                                        married,
+                                        eduyr,
+                                        kitchen,
+                                        fuel,
+                                        water,
+                                        toilet,
+                                        tv,
+                                        fridge,
+                                        wmachine,
+                                        mobile,
+                                        computer,
+                                        car,
+                                        scooter,
+                                        bicycle))
+
+# renaming for easier use with nfhs5
+
+shared_carrs_renamed <- shared_carrs
+names(shared_carrs_renamed) <- c("hhid",
+                                "linenumber",
+                                "carrs", 
+                                "fup",
+                                "glucose",
+                                "log_hba1c",
+                                "waistcircumference", 
+                                "hipcircumference",
+                                "weight",
+                                "height",
+                                "sbp",
+                                "dbp",
+                                "bmi",
+                                "age",
+                                "sex",
+                                "htn",
+                                "dm",
+                                "bp_treatment",
+                                "dm_treatment",
+                                "smokecurr",
+                                "smokecount",
+                                "alcohol",
+                                "freq_alcohol",
+                                "religion",
+                                "marital",
+                                "eduyr", 
+                                "kitchen",
+                                "fuel",
+                                "water",
+                                "toilet",
+                                "tv",
+                                "fridge",
+                                "wmachine",
+                                "mobile",
+                                "computer", 
+                                "car",
+                                "scooter",
+                                "bicycle")
+
+# subsetting for modeling (this is the dataset used for prediction)
+health_carrs <- subset(shared_carrs_renamed, select = c(hhid,
+                                                        linenumber, 
+                                                        carrs, 
+                                                        fup, 
+                                                        glucose, 
+                                                        log_hba1c, 
+                                                        waistcircumference, 
+                                                        hipcircumference, 
+                                                        weight, 
+                                                        height, 
+                                                        sbp, 
+                                                        dbp, 
+                                                        bmi, 
+                                                        age, 
+                                                        sex, 
+                                                        htn, 
+                                                        dm, 
+                                                        bp_treatment, 
+                                                        dm_treatment, 
+                                                        alcohol, 
+                                                        freq_alcohol))
+                                                        
+### OUTPUTS FOR TRAINING MODEL 
+
+# writing full csv 
+write.csv(health_carrs, file = "/Users/alaynabaker/Documents/Hba1c Prediction/FINAL/Data/CARRS/fullCarrs.csv", row.names = FALSE)
+
+# writing shared carrs (for comparison with nfhs5)
+write.csv(shared_carrs_renamed, file = "/Users/alaynabaker/Documents/Hba1c Prediction/FINAL/Data/Shared Columns/sharedCarrs.csv", row.names = FALSE)
+
+# no nas health carrs 
+no_nas_healthcarrs <- na.omit(health_carrs)
+write.csv(no_nas_healthcarrs, file = "/Users/alaynabaker/Documents/Hba1c Prediction/FINAL/Data/CARRS/noNAsCarrs.csv", row.names = FALSE)
+
+
+### OUTPUT NEEDED TO REPLICATE - this is used in 4. for imputation
+
+# writing csv with only people who have a follow-up 
+only_fup <- health_carrs %>%
+  group_by(hhid, linenumber) %>%
+  filter(any(fup == 0) & any(fup == 4))
+
+write.csv(only_fup, file = "/Users/alaynabaker/Documents/Hba1c Prediction/FINAL/Data/CARRS/fupCARRS.csv", row.names = FALSE)
+
+############################
+```
+
+```{r}
+############################
+# 3. EVALUATING NAS
+library(Hmisc)
+library(qreport)
+
+testing <- health_carrs
+
+# how many nas per column? 
+print("sums")
+# colSums(is.na(health_carrs))
+
+# percentage of na for each column
+print("percentage")
+divide <- colSums(is.na(health_carrs))/nrow(health_carrs)
+perc <- round(divide*100, .2)
+# perc
+
+# carrs_dt <- setDT(health_carrs)
+missChk(carrs_dt)
+
+explanatory <- c("glucose", "waistcircumference", "hipcircumference", "weight", "height",
+  "sbp", "dbp", "bmi", "age", "sex", "htn", "dm", "bp_treatment",
+  "dm_treatment")
+
+dependent <- "log_hba1c"
+
+# testing %>%
+#   missing_pattern(dependent, explanatory)
+
+table(health_carrs$carrs, health_carrs$fup)
+
+############################
+```
+
+```{r}
+############################
+# 4. IMPUTATION
+
+# imputation: doing 5 iterations for each row 
+
+# imputation types: 
+# rf: random forest
+# norm.boot: linear regression with bootstrapping
+# norm.predict: linear regression, predicted values
+# default ("var") -> predictive mean 
+
+# IMPUTING MISSING DATA
+library(mice)
+
+rfData0 <- mice(health_carrs, m=5, maxit = 10, meth="rf", seed=123)
+rfData <- complete(rfData0, action = "long")
+summary(rfData0)
+head(rfData)
+
+write.csv(rfData, file = "/Users/alaynabaker/Documents/Hba1c Prediction/FINAL/Data/CARRS/Imputation/carrs_imputed_rf.csv", row.names = FALSE)
+
+bootData0 <- mice(health_carrs, m=5, maxit = 10, meth="norm.boot", seed=123)
+bootData <- complete(bootData0, action = "long")
+summary(bootData0)
+
+write.csv(bootData, file = "/Users/alaynabaker/Documents/Hba1c Prediction/FINAL/Data/CARRS/Imputation/carrs_imputed_bootstrap.csv", row.names = FALSE)
+
+predData0 <- mice(only_fup, m=5, maxit = 10, meth="norm.predict", seed=123)
+predData <- complete(predData0, action = "long")
+summary(predData0)
+
+write.csv(predData, file = "/Users/alaynabaker/Documents/Hba1c Prediction/FINAL/Data/CARRS/Imputation/carrs_imputed_pred.csv", row.names = FALSE)
+
+varData0 <- mice(health_carrs, m=5, maxit = 10, seed=123)
+varData <- complete(varData0, action = "long")
+summary(varData0)
+
+write.csv(varData, file = "/Users/alaynabaker/Documents/Hba1c Prediction/FINAL/Data/CARRS/Imputation/carrs_imputed_variation.csv", row.names = FALSE)
+
+# FINAL, CHOSEN DATA
+
+imputedData <- complete(predData0, action = 1)
+
+write.csv(imputedData, file = "/Users/alaynabaker/Documents/Hba1c Prediction/FINAL/Data/CARRS/only_fup_imputed.csv", row.names = FALSE)
+
+############################
+```

@@ -1,0 +1,225 @@
+---
+title: "Clean_NFHS5"
+author: "Alayna Baker"
+date: "2024-07-31"
+output: html_document
+---
+
+```{r}
+############################
+## NECESSARY CODE INPUTS
+# - "ihpd02_nfhs5 analytic dataset.csv" [find in BOX]
+
+## NECESSARY CODE OUTPUTS
+# - health_carrs1 - "noNA_healthNFHS5.csv" [@ bottom of 2 || predicted HbA1c onto this dataset]
+
+### ORDER TO THIS CODE
+# 1. Reading in Data
+# 2. Cleaning Data
+# 3. Evaluating NAs
+
+############################
+```
+
+```{r}
+
+############################
+# 1. READING IN DATA
+
+nfhs5 <- read.csv("/Users/alaynabaker/Documents/Hba1c Prediction/FINAL/Data/ORIGINAL/ihpd02_nfhs5 analytic dataset.csv")
+
+############################
+```
+
+
+```{r}
+############################
+# 2. CLEANING DATA
+
+nfhs5_1 <- nfhs5
+
+# outliers - changing to NA 
+nfhs5_1$weight <- ifelse(nfhs5_1$weight >= 9990, NA, nfhs5_1$weight) # taking out outliers (weight >= 999)
+nfhs5_1$height <- ifelse(nfhs5_1$height >= 9990, NA, nfhs5_1$height) # taking out outliers (height >= 999)
+nfhs5_1 <- subset(nfhs5_1, age >= 20) # should only be considering people over than 20? 
+nfhs5_1$smokecount <- ifelse(nfhs5_1$smokecount == 80, NA, nfhs5_1$smokecount)
+
+
+# changing sex to numerical ("Male" = 1, "Female" = 2)
+nfhs5_1$sex <- ifelse(nfhs5_1$sex == "Male", 1, 2)
+
+# BLOOD PRESSURE
+  # ICMR GUIDELINES: lowest of the first 2 measurements if difference between is <= 5mmg, otherwise, lowest of 3
+
+nfhs_dbp <- subset(nfhs5_1, select = c(dbp1, dbp2, dbp3))
+    nfhs_dbp <- nfhs_dbp %>%
+      mutate(dbp = case_when(
+        is.na(dbp2) & is.na(dbp3) ~ dbp1,
+        is.na(dbp3) ~ pmin(dbp1, dbp2), 
+        abs(dbp1 - dbp2) <= 5 ~ pmin(dbp1, dbp2), 
+        TRUE ~ pmin(dbp1, dbp2, dbp3))
+      )
+  
+  # adding to original dataset
+  nfhs5_1["real_dbp"] = nfhs_dbp["dbp"]
+
+nfhs_sbp <- subset(nfhs5_1, select = c(sbp1, sbp2, sbp3))
+      nfhs_sbp <- nfhs_sbp %>%
+        mutate(sbp = case_when(
+          is.na(sbp2) & is.na(sbp3) ~ sbp1,
+          is.na(sbp3) ~ pmin(sbp1, sbp2), 
+          is.na(sbp1) ~ pmin(sbp3, sbp2),
+          abs(sbp1 - sbp2) <= 5 ~ pmin(sbp1, sbp2), 
+          TRUE ~ pmin(sbp1, sbp2, sbp3))
+        )
+      
+  # adding to original dataset
+  nfhs5_1["real_sbp"] = nfhs_sbp["sbp"]
+  
+
+# reformatting weight, height, and hb to get decimal points  
+nfhs5_1$weight <- nfhs5_1$weight / 10 
+nfhs5_1$height <- nfhs5_1$height / 10 
+nfhs5_1$hb_adjusted <- nfhs5_1$hb_adjusted / 10 
+# calculating bmi manually
+
+  # height (cm) to height (m)
+  nfhs5_1$height_m = nfhs5_1$height / 100
+
+nfhs5_1$new_bmi = nfhs5_1$weight / (nfhs5_1$height_m)^2
+  
+# making NAs 0 
+nfhs5_1$htn <- ifelse(is.na(nfhs5_1$htn), 0, nfhs5_1$htn)
+nfhs5_1$medication_dm <- ifelse(is.na(nfhs5_1$medication_dm), 0, nfhs5_1$medication_dm)
+  
+shared_nfhs <- subset(nfhs5_1, select = c(hhid,
+                                        linenumber,
+                                        district,
+                                        glucose,
+                                        waistcircumference,
+                                        hipcircumference,
+                                        weight,
+                                        height,
+                                        real_sbp,
+                                        real_dbp,
+                                        new_bmi,
+                                        age,
+                                        sex, 
+                                        htn,
+                                        diagnosed_dm,
+                                        current_ca,
+                                        treated_bp,
+                                        medication_dm,
+                                        smokecurr,
+                                        smokecount,
+                                        alcohol,
+                                        freq_alcohol, 
+                                        religion,
+                                        marital,
+                                        eduyr,
+                                        kitchen,
+                                        fuel,
+                                        water,
+                                        toilet,
+                                        tv,
+                                        fridge,
+                                        wmachine,
+                                        mobile,
+                                        computer,
+                                        car,
+                                        scooter,
+                                        bicycle))
+
+shared_nfhs_renamed <- shared_nfhs
+names(shared_nfhs_renamed) <- c("hhid",
+                                "linenumber",
+                                "district",
+                                "glucose",
+                                "waistcircumference", 
+                                "hipcircumference",
+                                "weight",
+                                "height",
+                                "sbp",
+                                "dbp",
+                                "bmi",
+                                "age",
+                                "sex",
+                                "htn",
+                                "dm",
+                                "ca",
+                                "bp_treatment",
+                                "dm_treatment",
+                                "smokecurr",
+                                "smokecount",
+                                "alcohol",
+                                "freq_alcohol",
+                                "religion",
+                                "marital",
+                                "eduyr", 
+                                "kitchen",
+                                "fuel",
+                                "water",
+                                "toilet",
+                                "tv",
+                                "fridge",
+                                "wmachine",
+                                "mobile",
+                                "computer", 
+                                "car",
+                                "scooter",
+                                "bicycle")
+
+summary(shared_nfhs_renamed)
+
+health_nfhs0 <- subset(shared_nfhs_renamed, select = c(hhid,
+                                                        linenumber, 
+                                                      district,
+                                                        glucose, 
+                                                        waistcircumference, 
+                                                        hipcircumference, 
+                                                        weight, 
+                                                        height, 
+                                                        sbp, 
+                                                        dbp, 
+                                                        bmi, 
+                                                        age, 
+                                                        sex, 
+                                                        htn, 
+                                                        dm, 
+                                                        bp_treatment, 
+                                                        dm_treatment))
+
+# need to take out NAs for relevant columns in health_nfhs5 for prediction
+health_nfhs1 <- na.omit(health_nfhs0)
+
+# writing shared carrs (for comparison with nfhs5)
+write.csv(shared_nfhs_renamed, file = "/Users/alaynabaker/Documents/Hba1c Prediction/FINAL/Data/Shared Columns/sharedNFHS5.csv", row.names = FALSE)
+
+# writing health_nfhs5 (for prediction)
+write.csv(health_nfhs1, file = "/Users/alaynabaker/Documents/Hba1c Prediction/FINAL/Data/NFHS5/noNA_healthNFHS5.csv", row.names = FALSE)
+
+############################
+```
+
+```{r}
+############################
+# 3.  EVALUATING NAS
+
+library(Hmisc)
+library(qreport)
+
+testing <- health_nfhs1
+
+# how many nas per column? 
+print("sums")
+colSums(is.na(testing))
+
+# percentage of na for each column
+print("percentage")
+divide <- colSums(is.na(testing))/nrow(testing)
+perc <- round(divide*100, .2)
+perc
+
+############################
+```
+
