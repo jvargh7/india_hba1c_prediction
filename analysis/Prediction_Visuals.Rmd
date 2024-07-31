@@ -1,0 +1,190 @@
+---
+title: "Predictions"
+author: "Alayna Baker"
+date: "2024-07-31"
+output: html_document
+---
+
+```{r}
+
+# reading in original CSV
+carrs_data <- read.csv("/Users/alaynabaker/Documents/Hba1c Prediction/Modeling Code/final imputation/only_fup_imputed.csv")
+
+# reading in predictions
+carrs_pred <- read.csv('/Users/alaynabaker/Documents/Hba1c Prediction/FINAL/predictions.csv')
+
+```
+
+```{r}
+library(ggplot2)
+library(reshape2)
+
+carrs_pred1 <- carrs_pred %>%
+  rename(
+    xgboost_pred = xgboost_tuned_predictions,
+    gradboost_pred = gradient_boosting_tuned_predictions,
+    rf_pred = random_forest_tuned_predictions,
+    stacked_pred = stacked_model_predictions,
+    Actual = Actual
+  )
+
+carrs_pred1$xgboost_error <- carrs_pred1$Actual - carrs_pred1$xgboost_pred
+carrs_pred1$gradboost_error <- carrs_pred1$Actual - carrs_pred1$gradboost_pred
+carrs_pred1$rf_error <- carrs_pred1$Actual - carrs_pred1$rf_pred
+carrs_pred1$stacked_error <- carrs_pred1$Actual - carrs_pred1$stacked_pred
+
+head(carrs_pred1)
+
+# Reshape data to long format
+long_error_data <- melt(carrs_pred1, 
+                   id.vars = c("Actual"),
+                   measure.vars = c("xgboost_error", "gradboost_error", "rf_error", "stacked_error"),
+                   variable.name = "Model",
+                   value.name = "Error")
+
+long_error_data$Model <- factor(long_error_data$Model, 
+                          levels = c("xgboost_error", "gradboost_error", "rf_error", "stacked_error"),
+                          labels = c("XGBoost", "Gradient Boosting", "Random Forest", "Stacked Model"))
+
+```
+
+```{r}
+# VIOLIN PLOT
+
+ggplot(long_error_data, aes(x = Model, y = Error)) +
+  geom_violin(color = "black", fill = "#191970", alpha = 0.3) +
+  geom_boxplot(width = 0.2, color = "black", alpha = 0.4, outlier.shape = NA) +
+  stat_summary(fun = median, geom = "crossbar", color = "black", width = 0.1) +
+  labs(title = "Violin Plot of Prediction Errors",
+       x = "",
+       y = "Prediction Error") +
+  theme_minimal()
+
+```
+
+```{r}
+# PREDICTIONS AGAINST ACTUAL VALUES
+
+long_data_pred <- melt(carrs_pred1, 
+                       id.vars = "Actual",
+                       measure.vars = c("xgboost_pred", "gradboost_pred", "rf_pred", "stacked_pred"),
+                       variable.name = "Model",
+                       value.name = "Prediction")
+
+long_data_pred$Model <- factor(long_data_pred$Model, 
+                               levels = c("xgboost_pred", "gradboost_pred", "rf_pred", "stacked_pred"),
+                               labels = c("XGBoost", "Gradient Boosting", "Random Forest", "Stacked Model"))
+
+long_data_pred <- long_data_pred %>%
+  mutate(Residual = Actual - Prediction)
+
+long_data_pred <- long_data_pred %>%
+  mutate(Error = abs(Actual - Prediction))
+
+```
+
+```{r}
+
+color_gradient <- scale_color_gradient(low = "#ADD8E6", high = "#4682B4", guide = "none")
+
+ggplot(long_data_pred, aes(x = Prediction, y = Residual, color = Error)) +
+  geom_point(alpha = 0.5) +
+  geom_hline(yintercept = 0, linetype = "solid", color = "gray10") +
+  geom_hline(yintercept = 0.25, linetype = "dotted", color = "gray10") +
+  geom_hline(yintercept = -0.25, linetype = "dotted", color = "gray10") +
+  facet_wrap(~ Model, scales = "fixed") +
+  color_gradient + 
+  labs(title = "Residuals vs. Predictions for Each Model",
+       x = "Predicted Values",
+       y = "Residuals") +
+  theme_minimal() +
+  theme(legend.position = "none")
+```
+
+
+
+```{r}
+
+long_data_pred <- long_data_pred %>%
+  mutate(Error = abs(Actual - Prediction))
+
+color_gradient <- scale_color_gradient(low = "#ADD8E6", high = "#4682B4", guide = "none")
+
+ggplot(long_data_pred, aes(x = Actual, y = Prediction, color = Error)) +
+  geom_point(alpha = 0.5) +
+  geom_abline(intercept = 0, slope = 1, linetype = "solid", color = "black", size = 0.5) +
+  geom_abline(intercept = 0.1, slope = 1, linetype = "dotted", color = "gray30", size = 0.5) +
+  geom_abline(intercept = -0.1, slope = 1, linetype = "dotted", color = "gray30", size = 0.5) +
+  geom_abline(intercept = 0.25, slope = 1, linetype = "dotdash", color = "gray20", size = 0.5) +
+  geom_abline(intercept = -0.25, slope = 1, linetype = "dotdash", color = "gray20", size = 0.5) +
+  facet_wrap(~ Model, scales = "fixed") +  
+  color_gradient + 
+  labs(title = "Predictions vs. Actual Values",
+       x = "Actual Values",
+       y = "Predicted Values") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 10, face = "bold", hjust = 0.5),  # Title styling
+    axis.title = element_text(size = 8),  # Axis title size
+    axis.text = element_text(size = 5),  # Axis text size
+    panel.grid.major = element_line(size = 0.5, linetype = 'solid', colour = "gray85"), 
+    panel.grid.minor = element_line(size = 0.2, linetype = 'solid', colour = "gray90")
+  )
+
+```
+```{r}
+library(ggplot2)
+library(reshape2)
+library(dplyr)
+
+# Assuming carrs_pred1 and long_error_data are already prepared
+
+# Plot histograms of prediction errors
+ggplot(long_error_data, aes(x = Error, fill = Model)) +
+  geom_histogram(binwidth = 0.1, alpha = 0.6, position = "identity", color = "black") +
+  facet_wrap(~ Model, scales = "fixed") + 
+  labs(title = "Distribution of Prediction Errors by Model",
+       x = "Prediction Error",
+       y = "Count",
+       fill = "Model") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 12, face = "bold", hjust = 0.5),
+    axis.title = element_text(size = 10),
+    axis.text = element_text(size = 8),
+    strip.text = element_text(size = 10),
+    panel.grid.major = element_line(size = 0.5, linetype = 'solid', colour = "gray80"),
+    panel.grid.minor = element_line(size = 0.25, linetype = 'solid', colour = "gray90")
+  )
+
+```
+```{r}
+# Plot density plots of prediction errors
+ggplot(long_error_data, aes(x = Error, fill = Model)) +
+  geom_density(alpha = 0.6) +
+  facet_wrap(~ Model, scales = "fixed") +  
+  labs(title = "Density Distribution of Prediction Errors by Model",
+       x = "Prediction Error",
+       y = "Density",
+       fill = "Model") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 12, face = "bold", hjust = 0.5),
+    axis.title = element_text(size = 10),
+    axis.text = element_text(size = 8),
+    strip.text = element_text(size = 10),
+    panel.grid.major = element_line(size = 0.5, linetype = 'solid', colour = "gray80"),
+    panel.grid.minor = element_line(size = 0.25, linetype = 'solid', colour = "gray90")
+  )
+
+```
+
+
+
+
+
+
+
+
+
+
