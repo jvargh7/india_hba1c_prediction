@@ -1,0 +1,12 @@
+# cleanNFHS5
+
+dm: Either self-reported or high random glucose
+htn: Either self-reported or high measured blood pressure
+
+## Raw
+toldhigh_dm/toldhigh_bp: Self-reported
+medication_dm/medication_bp: Self-reported
+
+## Processed
+diagnosed_dm/diagnosed_bp: Self-reported
+treated_dm/treated_bp: Self-reported

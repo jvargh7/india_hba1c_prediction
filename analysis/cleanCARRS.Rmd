@@ -29,7 +29,14 @@ output: html_document
 # 1. READING IN DATA
 
 library(tidyr)
-carrs <- read.csv("/Users/alaynabaker/Documents/Hba1c Prediction/FINAL/Data/ORIGINAL/ihpd01_carrs analytic dataset.csv")
+if(Sys.info()["user"] == "JVARGH7"){
+    carrs <- read_csv(paste0(path_india_hba1c_box_folder,"/working/Data/ORIGINAL/ihpd01_carrs analytic dataset.csv"))
+
+}
+if(Sys.info()["user"] == "alaynabaker"){
+  carrs <- read.csv("/Users/alaynabaker/Documents/Hba1c Prediction/FINAL/Data/ORIGINAL/ihpd01_carrs analytic dataset.csv")
+
+}
 
 ############################
 ```

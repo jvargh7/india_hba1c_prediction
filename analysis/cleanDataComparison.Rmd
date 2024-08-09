@@ -9,9 +9,20 @@ output: html_document
 ```{r}
 # READING IN DATA 
 
+
+if(Sys.info()["user"] == "JVARGH7"){
+nfhs_data <- read.csv(paste0(path_india_hba1c_box_folder,"/working/Data/Shared Columns/sharedNFHS5.csv"))
+
+carrs_data <- read.csv(paste0(path_india_hba1c_box_folder,"/working/Data/Shared Columns/sharedCarrs.csv"))
+
+}
+if(Sys.info()["user"] == "alaynabaker"){
 nfhs_data <- read.csv("/Users/alaynabaker/Documents/Hba1c Prediction/FINAL/Data/Shared Columns/sharedNFHS5.csv")
 
 carrs_data <- read.csv("/Users/alaynabaker/Documents/Hba1c Prediction/FINAL/Data/Shared Columns/sharedCarrs.csv")
+
+}
+
 ```
 
 ```{r}

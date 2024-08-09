@@ -84,7 +84,21 @@ analytic_dataset <- bind_rows(BL %>%
   dplyr::filter(!is.na(doi)) %>% 
   mutate(married = case_when(marital %in% c(2) ~ 1,
                              marital %in% c(1,3,4,5) ~ 0,
-                             TRUE ~ NA_real_)) %>% 
+                             TRUE ~ NA_real_),
+         toilet_harmonized = case_when(toilet %in% c(1,2,4) ~ 0,
+                                       toilet %in% c(3) ~ 1,
+                                       TRUE ~ NA_real_),
+         fuel_harmonized = case_when(fuel %in% c(1,3,4) ~ 0,
+                                     fuel %in% c(2) ~ 1,
+                                     TRUE ~ NA_real_),
+         water_harmonized = case_when(water %in% c(4,5) ~ 1,
+                                      water %in% c(2,3,1,6) ~ 0,
+                                      TRUE ~ NA_real_)) %>% 
+  dplyr::select(-fuel,-water,-toilet) %>% 
+  rename(
+    fuel = fuel_harmonized,
+    water = water_harmonized,
+    toilet = toilet_harmonized) %>% 
   mutate(religion = case_when(religion == 1 ~ "Hindu",
                               religion == 2 ~ "Islam",
                               TRUE ~ "Other"),
@@ -93,6 +107,10 @@ analytic_dataset <- bind_rows(BL %>%
 
 saveRDS(analytic_dataset,paste0(path_india_hba1c_box_folder,"/working/ihpd01_carrs analytic dataset.RDS"))
 write_csv(analytic_dataset,paste0(path_india_hba1c_box_folder,"/working/ihpd01_carrs analytic dataset.csv"))
+
+analytic_dataset <- readRDS(paste0(path_india_hba1c_box_folder,"/working/ihpd01_carrs analytic dataset.RDS"))
+
+summary(analytic_dataset$age)
 
 analytic_dataset %>% 
   group_by(carrs,fup) %>% 

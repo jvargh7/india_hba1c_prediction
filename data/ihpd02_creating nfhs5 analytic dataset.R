@@ -20,7 +20,27 @@ iahr_variables <- readxl::read_excel("data/India HbA1c Prediction Variable List.
 household <- read_dta(paste0(path_dhs_data,"/IA/IAHR7CDT/IAHR7CFL.dta"),
                       col_select = iahr_variables$iahr7a)  %>% 
   rename_with(~ iahr_variables$new_var[which(iahr_variables$iahr7a == .x)], 
-              .cols = iahr_variables$iahr7a)
+              .cols = iahr_variables$iahr7a) %>% 
+  mutate(
+         fuel_harmonized = case_when(fuel %in% c(95,99) ~ NA_real_,
+                                     fuel %in% c(1:4) ~ 1,
+                                     fuel %in% c(5:11,96) ~ 0,
+                                     TRUE ~ NA_real_),
+         water_harmonized = case_when(water == 99 ~ NA_real_,
+                                      water %in% c(10:15,21,31,41,51,61:73) ~ 1,
+                                      water %in% c(20,30,32,40,42,43,96) ~ 0,
+                                      TRUE ~ NA_real_),
+         toilet_harmonized = case_when(toilet == 99 ~ NA_real_,
+                                       sharetoilet == 1 ~ 0, # Shared toilet = unimproved
+                                       toilet %in% c(10,11:13,15,20:22,41,51) ~ 1, # improved
+                                       toilet %in% c(14,23,30,42,43,44,96) ~ 0, # Unimproved
+                                       toilet == 31 ~ 0, # Open defecation
+                                       TRUE ~ NA_real_)) %>% 
+  dplyr::select(-fuel,-water,-toilet,-sharetoilet) %>% 
+  rename(
+    fuel = fuel_harmonized,
+    water = water_harmonized,
+    toilet = toilet_harmonized)
 
 # FEMALE ------------
 iair7c_female_variables <- readxl::read_excel("data/India HbA1c Prediction Variable List.xlsx",

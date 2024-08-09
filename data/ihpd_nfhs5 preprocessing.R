@@ -189,6 +189,10 @@ ihpd_nfhs5_preprocessing <- function(df, sex = "Female"){
     mutate(bmi = bmi/100)  %>% 
     mutate(age_category10 = cut(age,breaks=c(18,30,40,50,60,70,80,100),include.lowest=TRUE,right=FALSE),
            age_category5 = cut(age,breaks=seq(15,100,by=5),include.lowest=TRUE,right=FALSE)) %>% 
+    mutate(married = case_when(marital %in% c(0,9) ~ 0, # V501 has 9 = Missing, # Both have 0 = Never in Union
+                                          marital %in% c(1,2) ~ 1, # 1 = Married, 2 = Living with partner
+                                          marital %in% c(3:6) ~ 0,# 3 = Widowed, 4 = Divorced, 5 = Separated, 6 = Deserted
+                                          TRUE ~ 0)) %>% 
     
     return(.)
 }

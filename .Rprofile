@@ -6,6 +6,11 @@ if(Sys.info()["user"] == "JVARGH7"){
   path_india_hba1c_box_folder <- "C:/Users/jvargh7/Box/Papers/CARRS HbA1c Prediction"
   path_dhs_data <- "C:/Cloud/OneDrive - Emory University/data/dhs_program"
 }
+if(Sys.info()["user"] == "alaynabaker"){
+  # path_india_hba1c_internal_folder <- "/Users/alaynabaker/Documents/Hba1c Prediction/FINAL"
+  # path_india_hba1c_box_folder <- "C:/Users/jvargh7/Box/Papers/CARRS HbA1c Prediction"
+  # path_dhs_data <- "C:/Cloud/OneDrive - Emory University/data/dhs_program"
+}
 
 
 fasting_time <- 7.9
