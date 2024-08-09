@@ -1,0 +1,60 @@
+---
+title: "Evaluation_NFHS5_Pred"
+author: "Alayna Baker"
+date: "2024-07-31"
+output: html_document
+---
+
+```{r}
+
+# READING IN NFHS5 DATA WITH PREDICTIONS (from all models + stacked model)
+
+nfhs5_pred <- read.csv('/Users/alaynabaker/Documents/Hba1c Prediction/FINAL/Prediction/merged_predictions_with_original.csv')
+
+```
+
+```{r}
+# 2. TRANSFORMING HBA1C 
+
+orig_predictions <- nfhs5_pred
+
+# reading the last four column names (the added log(hba1c) predictions)
+log_predictions <- tail(names(orig_predictions), 4)
+
+# Rename prediction columns
+new_colnames <- c("HbA1c_XGBoost", "HbA1c_Gradient", "HbA1c_RF", "HbA1c_Stacked")
+
+renamed_pred <- orig_predictions %>%
+  rename_with(~ new_colnames, .cols = log_predictions)
+
+# Transform the log(Hba1c) predictions to just HbA1c
+transformed_pred <- renamed_pred %>%
+  mutate(across(all_of(new_colnames), exp))
+
+```
+```{r}
+# VISUALIZING PREDICTIONS
+
+
+
+```
+
+```{r}
+library(ggplot2)
+
+data_long <- pivot_longer(transformed_pred, cols = starts_with("HbA1c"), names_to = "Prediction", values_to = "Value")
+
+ggplot(data_long, aes(x = Value, y = age)) +
+  geom_point(alpha = 0.1) +
+  facet_wrap(~ Prediction, scales = "fixed") +
+  labs(
+    title = "Scatter Plots of HbA1c Predictions",
+    x = "Predicted HbA1c",
+    y = "Age"
+  ) +
+  theme_minimal()
+```
+
+
+
+
