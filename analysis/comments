@@ -10,3 +10,26 @@ medication_dm/medication_bp: Self-reported
 ## Processed
 diagnosed_dm/diagnosed_bp: Self-reported
 treated_dm/treated_bp: Self-reported
+
+## For cleanNFHS5.Rmd
+- Preserve the columns: c("hhid","linenumber","cluster","psu","state","district","strata","sampleweight")
+
+
+# For CARRS_Predictions and NFHS5_FullData_W_Pred
+- Keep column names consistent
+
+
+# Columns to include as predictors
+c_vars = c("waistcircumference", "hipcircumference", "weight", "height",
+           "sbp", "dbp", "bmi", "age", 
+           "eduyr")
+p_vars = c("history_htn", # adjusted - NAs = 0 (categorical)
+           "history_dm", # adjusted - NAs = 0 (categorical)
+           "medication_bp", # adjusted - NAs = 0 (categorical)
+           "medication_dm", "smokecurr",
+           "alcohol",  "married", "kitchen",
+           "fuel", "water", "toilet", "tv", "fridge", "wmachine", "mobile",
+           "computer", "car", "scooter", "bicycle")
+g_vars = c("sex")
+
+glucose is tricky - since fasting glucose (fpg) is not equivalent to random glucose (glucose in NFHS-5)

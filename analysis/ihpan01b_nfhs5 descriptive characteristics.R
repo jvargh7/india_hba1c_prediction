@@ -1,6 +1,7 @@
 rm(list=ls());gc();source(".Rprofile")
 
 source("C:/code/external/functions/survey/svysummary.R")
+source("C:/code/external/functions/survey/svysd.R")
 
 c_vars = c("glucose", "waistcircumference", "hipcircumference", "weight", "height",
            "sbp", "dbp", "bmi", "age", 
@@ -16,9 +17,9 @@ p_vars = c("htn", "dm",
            "fuel", "water", "toilet", "tv", "fridge", "wmachine", "mobile",
            "computer", "car", "scooter", "bicycle")
 
-g_vars = c("religion")
+g_vars = c("religion","sex")
 
-id_vars = c("hhid","linenumber","psu","state","sex", "district","strata","sampleweight")
+id_vars = c("hhid","linenumber","psu","state","district","strata","sampleweight")
 
 if(Sys.info()["user"] == "JVARGH7"){
   # nfhs_data <- read.csv(paste0(path_india_hba1c_box_folder,"/working/Data/Shared Columns/sharedNFHS5.csv"))
@@ -61,12 +62,33 @@ if(Sys.info()["user"] == "alaynabaker"){
 
 
 
-table_df = nfhs_data %>% 
+nfhs_svy = nfhs_data %>% 
+  group_by(sex) %>% 
+  mutate(normalizedweight = sampleweight/sum(sampleweight)) %>% 
+  ungroup() %>% 
   as_survey_design(.data = .,
                    ids = psu,strata = state,
-                   weight = sampleweight,
+                   weight = normalizedweight,
                    nest = TRUE,
-                   variance = "YG",pps = "brewer") %>% 
+                   variance = "YG",pps = "brewer")
+
+
+table_df = nfhs_svy %>% 
    svysummary(.,c_vars = c_vars,p_vars = p_vars,g_vars = g_vars)
 
-write_csv(table_df,"analysis/ihpan01b_nfhs5 descriptive characteristics.csv")
+
+table_df_sd = nfhs_svy %>% 
+  svysd(.,c_vars = c_vars)
+
+table_df_n = nfhs_data %>% 
+  summarize(across(c(c_vars,p_vars,g_vars),~sum(!is.na(.)))) %>% 
+  pivot_longer(cols=everything(),names_to="variable",values_to="n")
+
+bind_rows(table_df %>% mutate(est = case_when(type == "Continuous" ~ "mean",
+                                              TRUE ~ "proportion")),
+          table_df_sd %>% mutate(est = "sd")) %>% 
+  left_join(table_df_n,
+            by=c("variable")) %>% 
+
+
+write_csv(.,"analysis/ihpan01b_nfhs5 descriptive characteristics.csv")
