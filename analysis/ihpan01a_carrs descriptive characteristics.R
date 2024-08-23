@@ -1,5 +1,6 @@
 rm(list=ls());gc();source(".Rprofile")
 
+# https://github.com/jvargh7/functions/blob/main/nhst/table1_summary.R
 source("C:/code/external/functions/nhst/table1_summary.R")
 
 if(Sys.info()["user"] == "JVARGH7"){
